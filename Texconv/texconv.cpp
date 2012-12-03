@@ -865,6 +865,12 @@ int __cdecl wmain(_In_ int argc, _In_z_count_(argc) wchar_t* argv[])
 				}
 
 			}
+			else
+			{
+				wprintf( L" ERROR: image format not supported by premulalpha option (TODO)\n" );
+				delete image;
+				goto LError;
+			}
 		}
 
         // --- Generate mips -----------------------------------------------------------
