@@ -38,6 +38,7 @@ enum OPTIONS    // Note: dwOptions below assumes 32 or less options.
     OPT_SEPALPHA,
     OPT_TYPELESS_UNORM,
     OPT_TYPELESS_FLOAT,
+	OPT_PREMUL_ALPHA,
 };
 
 struct SConversion
@@ -79,7 +80,8 @@ SValue g_pOptions[] =
     { L"nologo",        OPT_NOLOGO    },
     { L"sepalpha",      OPT_SEPALPHA  },
     { L"tu",            OPT_TYPELESS_UNORM },
-    { L"tf",            OPT_TYPELESS_FLOAT },
+	{ L"tf",            OPT_TYPELESS_FLOAT },
+	{ L"premulalpha",   OPT_PREMUL_ALPHA },
     { nullptr,          0             }
 };
 
@@ -339,7 +341,8 @@ void PrintUsage()
     wprintf( L"   -t{u|f}             DDS files with TYPELESS format is treated as UNORM or FLOAT\n");
     wprintf( L"   -dword              Use DWORD instead of BYTE alignment (DDS input only)\n");
     wprintf( L"   -dx10               Force use of 'DX10' extended header (DDS output only)\n");
-    wprintf( L"   -nologo             suppress copyright message\n");
+	wprintf( L"   -nologo             suppress copyright message\n");
+	wprintf( L"   -premulalpha        multiply color by alpha\n");
 
     wprintf( L"\n");
     wprintf( L"   <format>: ");
@@ -372,6 +375,7 @@ int __cdecl wmain(_In_ int argc, _In_z_count_(argc) wchar_t* argv[])
     DWORD dwSRGB = 0;
     DWORD dwFilterOpts = 0;
     DWORD FileType = CODEC_DDS;
+	bool  premulAlpha = false;
 
     WCHAR szPrefix   [MAX_PATH];
     WCHAR szSuffix   [MAX_PATH];
@@ -420,7 +424,8 @@ int __cdecl wmain(_In_ int argc, _In_z_count_(argc) wchar_t* argv[])
             if( (OPT_NOLOGO != dwOption) && (OPT_SEPALPHA != dwOption) && (OPT_TYPELESS_UNORM != dwOption) && (OPT_TYPELESS_FLOAT != dwOption) 
                 && (OPT_SRGB != dwOption) && (OPT_SRGBI != dwOption) && (OPT_SRGBO != dwOption)
                 && (OPT_HFLIP != dwOption) && (OPT_VFLIP != dwOption)
-                && (OPT_DDS_DWORD_ALIGN != dwOption) && (OPT_USE_DX10 != dwOption) )
+                && (OPT_DDS_DWORD_ALIGN != dwOption) && (OPT_USE_DX10 != dwOption) 
+				&& (OPT_PREMUL_ALPHA != dwOption))
             {
                 if(!*pValue)
                 {
@@ -527,6 +532,9 @@ int __cdecl wmain(_In_ int argc, _In_z_count_(argc) wchar_t* argv[])
                     return 1;
                 }
                 break;
+			case OPT_PREMUL_ALPHA:
+				premulAlpha = true;
+				break;
             }
         }
         else
@@ -806,7 +814,7 @@ int __cdecl wmain(_In_ int argc, _In_z_count_(argc) wchar_t* argv[])
         }
 
         // --- Convert -----------------------------------------------------------------
-        if ( info.format != tformat && !IsCompressed( tformat ) )
+        if ( info.format != tformat && !IsCompressed( tformat ))
         {
             ScratchImage *timage = new ScratchImage;
             if ( !timage )
@@ -840,7 +848,24 @@ int __cdecl wmain(_In_ int argc, _In_z_count_(argc) wchar_t* argv[])
 
             delete image;
             image = timage;
+
         }
+
+		if (premulAlpha)
+		{
+			if (info.format == DXGI_FORMAT_R8G8B8A8_UNORM || info.format == DXGI_FORMAT_B8G8R8A8_UNORM)
+			{
+				uint8_t *pix = image->GetPixels();
+				for (size_t i=0; i<image->GetPixelsSize(); i+=4)
+				{
+					float alpha = (float)pix[i+3]/255.f;
+					pix[i+0] = (uint8_t)((float)pix[i+0] * alpha);
+					pix[i+1] = (uint8_t)((float)pix[i+1] * alpha);
+					pix[i+2] = (uint8_t)((float)pix[i+2] * alpha);
+				}
+
+			}
+		}
 
         // --- Generate mips -----------------------------------------------------------
         if ( !ispow2(info.width) || !ispow2(info.height) || !ispow2(info.depth) )
